@@ -1,0 +1,64 @@
+pipeline {    
+    agent any 
+
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
+          }
+          
+    stages {
+        
+        stage ('hello') {
+            steps {
+                echo 'Hello World'
+            }
+        }       
+        stage ('git checkout') {
+            steps {
+                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/harshalgaikwad25/war-web-project.git']])
+            }
+        }        
+        stage ('maven compile') {
+            steps {
+                sh '''mvn compile'''
+            }
+        }        
+        stage ('mvn build') {
+            steps {
+                sh '''mvn clean package'''
+            }
+        }        
+        stage ('Docker build and push') {
+            steps {
+                script {
+                   withDockerRegistry(credentialsId: 'docker-hub', url: 'https://registry-1.docker.io',  toolName: 'docker' )
+                    {
+                        sh '''  docker build -t app . '''
+                        sh '''  docker tag app  harshalgaikwad/app:latest '''
+                        sh '''  docker login -u "harshalgaikwad" --password "*********" '''
+                        sh '''  docker push harshalgaikwad/app:latest '''
+                    }
+                }
+            }
+        }        
+        stage('Clean Up') {
+            steps {
+                script {
+                    sh 'docker stop my-app || true'
+                    sh 'docker rm my-app || true'
+                }
+            }
+        }        
+        stage ('Deploy app on tomcat') {
+            steps {
+                script {
+                   withDockerRegistry(credentialsId: 'docker-hub', url: 'https://registry-1.docker.io',  toolName: 'docker' )
+                    {
+                        sh '''  docker run -d --name my-app  -p 8081:8080 harshalgaikwad/app:latest'''
+
+                    }
+                }
+            }
+        }   
+    }
+}
